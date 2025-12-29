@@ -478,13 +478,9 @@ def generate_hls(
                 "-x264-params", f"threads={cpu_count}:lookahead-threads=4",
             ]
         else:
-            # Full GPU mode: NVENC encoding
-            logger.info(f"Using NVENC hardware encoding (full GPU mode) on GPU {gpu_device}")
+            # Full GPU mode: NVENC encoding (CPU decode, GPU encode)
+            logger.info(f"Using NVENC hardware encoding on GPU {gpu_device}")
             cmd += [
-                "-hwaccel", "cuda",
-                "-hwaccel_output_format", "cuda",
-                "-hwaccel_device", str(gpu_device),
-                "-extra_hw_frames", "8",
                 "-i", input_path,
                 "-vsync", "cfr",  # Use -vsync instead of -fps_mode for FFmpeg < 5.0
                 "-r", str(fps),
@@ -492,6 +488,7 @@ def generate_hls(
                 "-keyint_min", str(gop),
                 "-sc_threshold", "0",
                 "-c:v", "h264_nvenc",
+                "-gpu", str(gpu_device),  # Select GPU device for NVENC
                 "-preset", "p2",  # Changed from p4 to p2 for faster encoding
                 "-tune", "ll",  # Changed from hq to ll (low latency) for speed
                 "-rc", "vbr",
