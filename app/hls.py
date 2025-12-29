@@ -462,7 +462,7 @@ def generate_hls(
                 "-extra_hw_frames", "8",
                 "-i", input_path,
                 "-threads", str(cpu_count),
-                "-fps_mode", "cfr",
+                "-vsync", "cfr",  # Use -vsync instead of -fps_mode for FFmpeg < 5.0
                 "-r", str(fps),
                 "-g", str(gop),
                 "-keyint_min", str(gop),
@@ -486,7 +486,7 @@ def generate_hls(
                 "-hwaccel_device", str(gpu_device),
                 "-extra_hw_frames", "8",
                 "-i", input_path,
-                "-fps_mode", "cfr",
+                "-vsync", "cfr",  # Use -vsync instead of -fps_mode for FFmpeg < 5.0
                 "-r", str(fps),
                 "-g", str(gop),
                 "-keyint_min", str(gop),
