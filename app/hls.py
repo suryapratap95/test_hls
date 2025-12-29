@@ -528,27 +528,30 @@ def generate_hls(
         result = subprocess.run(
             cmd,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            universal_newlines=True,
-            bufsize=1
+            stderr=subprocess.PIPE,
+            check=True
         )
-        
-        # Stream output in real-time
-        for line in process.stdout:
-            print(line.strip())
-            
-        process.wait()
-        
-        if process.returncode != 0:
-            raise HLSConverterError(f"FFmpeg failed with return code {process.returncode}")
-            
-        if not output_playlist.exists():
+
+        timings['encoding'] = time.time() - encode_start
+        logger.info(f"⏱️  Encoding completed: {timings['encoding']:.2f}s")
+
+        # Verify playlist was created
+        if not playlist_path.exists():
             raise HLSConverterError("HLS generation failed - no playlist created")
-            
-        # Create master playlist with correct paths
-        with open(master_playlist, "w") as f:
-            f.write(master_playlist_content)
-            
+
+        # Create master playlist
+        master_playlist_content = (
+            "#EXTM3U\n"
+            "#EXT-X-VERSION:3\n"
+            f"#EXT-X-STREAM-INF:BANDWIDTH=2000000,RESOLUTION={info['width']}x{info['height']}\n"
+            "segment/playlist.m3u8\n"
+        )
+
+        master_playlist.write_text(master_playlist_content)
+
+        timings['total'] = time.time() - total_start
+        _log_timing_summary(timings, file_size_mb, duration, "Single")
+
         return str(master_playlist)
 
     except subprocess.CalledProcessError as e:
