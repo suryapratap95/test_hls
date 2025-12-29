@@ -524,16 +524,25 @@ def generate_hls(
         ]
 
         logger.info(f"Starting HLS conversion: {input_path}")
+        logger.debug(f"FFmpeg command: {' '.join(cmd)}")
 
-        result = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=True
-        )
+        try:
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True
+            )
 
-        timings['encoding'] = time.time() - encode_start
-        logger.info(f"⏱️  Encoding completed: {timings['encoding']:.2f}s")
+            timings['encoding'] = time.time() - encode_start
+            logger.info(f"⏱️  Encoding completed: {timings['encoding']:.2f}s")
+
+        except subprocess.CalledProcessError as e:
+            # Log the full stderr output for debugging
+            stderr_output = e.stderr.decode('utf-8', errors='ignore') if e.stderr else "No error output"
+            logger.error(f"FFmpeg command failed with exit code {e.returncode}")
+            logger.error(f"Full stderr output:\n{stderr_output}")
+            raise
 
         # Verify playlist was created
         if not playlist_path.exists():
