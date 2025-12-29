@@ -540,9 +540,71 @@ def generate_hls(
         except subprocess.CalledProcessError as e:
             # Log the full stderr output for debugging
             stderr_output = e.stderr.decode('utf-8', errors='ignore') if e.stderr else "No error output"
-            logger.error(f"FFmpeg command failed with exit code {e.returncode}")
-            logger.error(f"Full stderr output:\n{stderr_output}")
-            raise
+
+            # Check if NVENC is not available and fallback to CPU encoding
+            if not mig_enabled and ('h264_nvenc' in stderr_output or 'nvenc' in stderr_output.lower()) and \
+               ('unsupported device' in stderr_output.lower() or 'failed' in stderr_output.lower()):
+                logger.warning("NVENC encoding failed, falling back to CPU encoding with libx264")
+
+                # Rebuild command with CPU encoding
+                cmd = ["ffmpeg", "-y"]
+
+                # No hardware acceleration, pure CPU
+                cmd += [
+                    "-i", input_path,
+                    "-threads", str(cpu_count),
+                    "-vsync", "cfr",
+                    "-r", str(fps),
+                    "-g", str(gop),
+                    "-keyint_min", str(gop),
+                    "-sc_threshold", "0",
+                    "-c:v", "libx264",
+                    "-preset", "veryfast",
+                    "-crf", str(crf),
+                    "-maxrate", video_bitrate,
+                    "-bufsize", str(int(video_bitrate[:-1]) * 2) + "k",
+                    "-pix_fmt", "yuv420p",
+                    "-profile:v", "main",
+                    "-movflags", "+faststart",
+                    "-x264-params", f"threads={cpu_count}:lookahead-threads=4",
+                ]
+
+                # Audio settings
+                cmd += [
+                    "-c:a", "aac",
+                    "-b:a", audio_bitrate,
+                    "-ac", "2",
+                    "-ar", "48000",
+                ]
+
+                # HLS settings
+                cmd += [
+                    "-f", "hls",
+                    "-hls_time", str(hls_time),
+                    "-hls_playlist_type", "vod",
+                    "-hls_flags", "independent_segments+temp_file",
+                    "-hls_segment_filename", str(segment_dir / "segment_%03d.ts"),
+                    "-start_number", "0",
+                    str(playlist_path)
+                ]
+
+                logger.info("Retrying with CPU-only encoding...")
+                logger.debug(f"Fallback FFmpeg command: {' '.join(cmd)}")
+
+                # Retry with CPU encoding
+                result = subprocess.run(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=True
+                )
+
+                timings['encoding'] = time.time() - encode_start
+                logger.info(f"⏱️  CPU encoding completed: {timings['encoding']:.2f}s")
+            else:
+                logger.error(f"FFmpeg command failed with exit code {e.returncode}")
+                logger.error(f"Full stderr output:\n{stderr_output}")
+                raise
 
         # Verify playlist was created
         if not playlist_path.exists():
